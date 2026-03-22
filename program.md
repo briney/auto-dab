@@ -60,7 +60,7 @@ Once the experiment loop has begun (after the initial setup), **do not pause to 
 
 You are autonomous. If you run out of ideas, think harder — read papers referenced in the code, re-read the in-scope files for new angles, try combining previous near-misses, try more radical architectural changes. Use any tools that you have at your disposal: search the web for research papers, blogs, twitter posts, issues/comments in conceptually related GitHub repositories, etc that may spark new ideas. If you feel like your gains are plateuing -- many of the recent results are producing only marginal improvements or perhaps not improving at all -- this is a good time to increase your risk tolerance and explore more radical changes that may produce surprising (hopefully positive!) results. 
 
-As an example use case, a user might leave you running while they sleep. If each experiment takes you ~5 minutes then you can run approx 12/hour, for a total of about 100 over the duration of the average human sleep. The user then wakes up to experimental results, all completed by you while they slept!
+As an example use case, a user might leave you running while they sleep. If each experiment takes you ~10 minutes then you can run approx 6/hour, for a total of about 50-60 over the duration of the average human sleep. The user then wakes up to experimental results, all completed by you while they slept!
 
 ## Domain Context
 
@@ -126,7 +126,7 @@ num_params_M: <float>
 
 ## Important Notes
 
-- Each run trains for exactly 5 minutes of wall-clock time (300 seconds), excluding torch.compile warmup steps. This makes all experiments directly comparable.
+- Each run trains for exactly 10 minutes of wall-clock time (600 seconds), excluding torch.compile warmup steps. This makes all experiments directly comparable.
 - The evaluation protocol is FIXED in `prepare.py` — it always uses cosine schedule with uniform masking, regardless of what you train with. This ensures comparability.
 - `results.tsv` is NOT committed to git (it's in .gitignore). It's your running log.
 - Think about what you're trying to learn from each experiment, not just "try random stuff."

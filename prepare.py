@@ -29,7 +29,7 @@ from torch.utils.data import DataLoader, Dataset
 
 VOCAB_SIZE = 32
 MAX_SEQ_LEN = 320
-TIME_BUDGET = 300  # 5 minutes of training
+TIME_BUDGET = 600  # 5 minutes of training
 EVAL_MASK_RATE = 0.15  # fixed 15% masking for evaluation
 EVAL_SEED = 8675309  # fixed seed for deterministic eval masking
 MASK_TOKEN_ID = 31
@@ -46,14 +46,37 @@ CACHE_DIR = Path(os.environ.get("AUTO_DAB_CACHE", Path.home() / ".cache" / "auto
 # ---------------------------------------------------------------------------
 
 VOCAB = [
-    "<cls>",   # 0
-    "<pad>",   # 1
-    "<eos>",   # 2
-    "<unk>",   # 3
-    "L", "A", "G", "V", "S", "E", "R", "T", "I", "D",  # 4-13
-    "P", "K", "Q", "N", "F", "Y", "M", "H", "W", "C",  # 14-23
-    "X", "B", "U", "O", "Z",  # 24-28 (non-standard)
-    ".", "-",  # 29-30 (insertion, gap)
+    "<cls>",  # 0
+    "<pad>",  # 1
+    "<eos>",  # 2
+    "<unk>",  # 3
+    "L",
+    "A",
+    "G",
+    "V",
+    "S",
+    "E",
+    "R",
+    "T",
+    "I",
+    "D",  # 4-13
+    "P",
+    "K",
+    "Q",
+    "N",
+    "F",
+    "Y",
+    "M",
+    "H",
+    "W",
+    "C",  # 14-23
+    "X",
+    "B",
+    "U",
+    "O",
+    "Z",  # 24-28 (non-standard)
+    ".",
+    "-",  # 29-30 (insertion, gap)
     "<mask>",  # 31
 ]
 
@@ -97,6 +120,7 @@ def decode_tokens(token_ids: list[int] | Tensor) -> str:
 # ---------------------------------------------------------------------------
 # Data caching
 # ---------------------------------------------------------------------------
+
 
 def _parse_mask_string(mask_str: str) -> list[int]:
     """Parse a string of digits into a list of ints."""
@@ -170,9 +194,7 @@ def prepare_data(data_path: str, val_fraction: float = 0.05, seed: int = 42) -> 
         print(f"  Saved {split_name} cache to {cache_path}")
 
 
-def _encode_split(
-    df: pd.DataFrame, has_cdr: bool, has_nt: bool
-) -> dict[str, list]:
+def _encode_split(df: pd.DataFrame, has_cdr: bool, has_nt: bool) -> dict[str, list]:
     """Encode a dataframe split into lists of tensors."""
     all_token_ids = []
     all_chain_ids = []
@@ -214,6 +236,7 @@ def _encode_split(
 # ---------------------------------------------------------------------------
 # Dataset and DataLoader
 # ---------------------------------------------------------------------------
+
 
 class AntibodyDataset(Dataset):
     """Dataset wrapping pre-tokenized antibody sequences."""
@@ -322,6 +345,7 @@ def make_dataloader(
 # Evaluation (fixed protocol -- DO NOT MODIFY)
 # ---------------------------------------------------------------------------
 
+
 @torch.no_grad()
 def evaluate(model: torch.nn.Module, batch_size: int = 64) -> dict[str, float]:
     """Evaluate model using a fixed protocol.
@@ -378,9 +402,7 @@ def evaluate(model: torch.nn.Module, batch_size: int = 64) -> dict[str, float]:
         targets_flat = token_ids.view(-1)
         mask_flat = mask_labels.view(-1)
 
-        loss_per_token = F.cross_entropy(
-            logits_flat, targets_flat, reduction="none"
-        )
+        loss_per_token = F.cross_entropy(logits_flat, targets_flat, reduction="none")
         masked_loss = (loss_per_token * mask_flat.float()).sum().item()
         total_loss += masked_loss
 
@@ -404,15 +426,21 @@ def evaluate(model: torch.nn.Module, batch_size: int = 64) -> dict[str, float]:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Prepare antibody data for auto-dab")
     parser.add_argument(
-        "--data", type=str, required=True,
+        "--data",
+        type=str,
+        required=True,
         help="Path to CSV/TSV/Parquet with heavy_chain and light_chain columns",
     )
     parser.add_argument(
-        "--val-fraction", type=float, default=0.05,
+        "--val-fraction",
+        type=float,
+        default=0.05,
         help="Fraction of data to hold out for validation (default: 0.05)",
     )
     parser.add_argument(
-        "--seed", type=int, default=42,
+        "--seed",
+        type=int,
+        default=42,
         help="Random seed for train/val split (default: 42)",
     )
     args = parser.parse_args()
