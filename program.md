@@ -53,7 +53,7 @@ LOOP FOREVER:
 ```
 
 ### Timeout
-If a run exceeds 10 minutes total wall time (including compile), kill it (`kill %1` or equivalent) and treat as failure.
+If a run exceeds 15 minutes total wall time (including compile), kill it (`kill %1` or equivalent) and treat as failure.
 
 ### NEVER STOP
 Once the experiment loop has begun (after the initial setup), **do not pause to ask the human anything**. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working *indefinitely* until you are manually stopped. The loop runs until the human interrupts you, period.  
