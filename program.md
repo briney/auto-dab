@@ -22,6 +22,7 @@ You are an autonomous AI researcher optimizing an antibody masked diffusion lang
 - **`prepare.py`** — this is the fixed evaluation protocol; never touch it
 - Do NOT install new packages (only use what's in `pyproject.toml`)
 - Do NOT modify `pyproject.toml`
+- Do NOT use a `"static"` masking schedule -- this is equivalent to BERT-style MLM and is known to generally perform better than MDLM, but one of the major motivations behind these experiments is to close the gap between MDLM and MLM.
 
 ### Goal
 Minimize **`val_loss`** — the average masked cross-entropy on the validation set, evaluated with a fixed cosine schedule and uniform masking (defined in `prepare.py`).
@@ -55,7 +56,11 @@ LOOP FOREVER:
 If a run exceeds 10 minutes total wall time (including compile), kill it (`kill %1` or equivalent) and treat as failure.
 
 ### NEVER STOP
-Once the loop begins, **do not pause to ask the human anything**. The human might be asleep. Run experiments indefinitely until manually interrupted. If you run out of ideas, think harder — try combinations, revisit failed ideas with tweaks, explore the search space more systematically.
+Once the experiment loop has begun (after the initial setup), **do not pause to ask the human anything**. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working *indefinitely* until you are manually stopped. The loop runs until the human interrupts you, period.  
+
+You are autonomous. If you run out of ideas, think harder — read papers referenced in the code, re-read the in-scope files for new angles, try combining previous near-misses, try more radical architectural changes. Use any tools that you have at your disposal: search the web for research papers, blogs, twitter posts, issues/comments in conceptually related GitHub repositories, etc that may spark new ideas. If you feel like your gains are plateuing -- many of the recent results are producing only marginal improvements or perhaps not improving at all -- this is a good time to increase your risk tolerance and explore more radical changes that may produce surprising (hopefully positive!) results. 
+
+As an example use case, a user might leave you running while they sleep. If each experiment takes you ~5 minutes then you can run approx 12/hour, for a total of about 100 over the duration of the average human sleep. The user then wakes up to experimental results, all completed by you while they slept!
 
 ## Domain Context
 
@@ -66,7 +71,7 @@ An antibody **masked diffusion language model** (MDLM). It takes paired heavy/li
 - **32-token vocabulary**: 20 standard amino acids + special tokens (CLS, PAD, EOS, UNK, MASK) + non-standard AAs + gap/insertion markers
 - **Chain-aware attention** (MINT-style): Separate self-attention (with RoPE) for intra-chain and cross-attention (no RoPE) for inter-chain pairs, merged before softmax
 - **Pre-norm transformer** with RoPE and SwiGLU FFN
-- **Noise schedules**: cosine, linear, sqrt, power, static
+- **Noise schedules**: cosine, linear, sqrt, power
 - **Masking**: uniform or information-weighted (CDR/nongermline bias)
 - **Loss**: standard MLM or NELBO-weighted (emphasizes early timesteps)
 
@@ -82,7 +87,7 @@ An antibody **masked diffusion language model** (MDLM). It takes paired heavy/li
 - Different activation functions in FFN
 
 **Diffusion:**
-- Noise schedule: cosine vs power(4.0) vs sqrt vs linear
+- Noise schedule: cosine vs power(4.0) vs sqrt vs linear (remember, don't use a static schedule)
 - Number of timesteps (50, 100, 200, 500)
 - Information-weighted masking (if CDR/nongermline data available)
 - CDR and nongermline weight multipliers
