@@ -12,7 +12,6 @@ This file is READ-ONLY during autoresearch -- the agent must not modify it.
 from __future__ import annotations
 
 import argparse
-import math
 import os
 import sys
 from pathlib import Path
@@ -31,7 +30,8 @@ from torch.utils.data import DataLoader, Dataset
 VOCAB_SIZE = 32
 MAX_SEQ_LEN = 320
 TIME_BUDGET = 300  # 5 minutes of training
-EVAL_TIMESTEPS = 100  # fixed evaluation timesteps
+EVAL_MASK_RATE = 0.15  # fixed 15% masking for evaluation
+EVAL_SEED = 8675309  # fixed seed for deterministic eval masking
 MASK_TOKEN_ID = 31
 PAD_TOKEN_ID = 1
 CLS_TOKEN_ID = 0
@@ -322,18 +322,13 @@ def make_dataloader(
 # Evaluation (fixed protocol -- DO NOT MODIFY)
 # ---------------------------------------------------------------------------
 
-def _cosine_mask_rate(timestep: int, num_timesteps: int) -> float:
-    """Fixed cosine schedule mask rate for evaluation."""
-    t_norm = timestep / num_timesteps
-    return 1.0 - math.cos(t_norm * math.pi / 2)
-
-
 @torch.no_grad()
 def evaluate(model: torch.nn.Module, batch_size: int = 64) -> dict[str, float]:
     """Evaluate model using a fixed protocol.
 
-    Uses a cosine noise schedule with uniform masking across all timesteps.
-    This gives a consistent val_loss regardless of training choices.
+    Uniform 15% masking with a fixed random seed so that the exact same tokens
+    are masked on every run, making val_loss directly comparable across
+    experiments and to standard MLM baselines.
 
     Args:
         model: The model to evaluate. Must accept
@@ -348,6 +343,10 @@ def evaluate(model: torch.nn.Module, batch_size: int = 64) -> dict[str, float]:
 
     val_loader = make_dataloader(batch_size, split="val", num_workers=0)
 
+    # Deterministic RNG for reproducible masking across runs
+    rng = torch.Generator(device=device)
+    rng.manual_seed(EVAL_SEED)
+
     total_loss = 0.0
     total_correct = 0
     total_masked = 0
@@ -360,43 +359,35 @@ def evaluate(model: torch.nn.Module, batch_size: int = 64) -> dict[str, float]:
 
         bsz, seq_len = token_ids.shape
 
-        # Evaluate at every timestep and average
-        for t in range(1, EVAL_TIMESTEPS + 1):
-            mask_rate = _cosine_mask_rate(t, EVAL_TIMESTEPS)
+        maskable = attention_mask.bool() & ~special_tokens_mask
+        rand = torch.rand(bsz, seq_len, device=device, generator=rng)
+        mask_labels = (rand < EVAL_MASK_RATE) & maskable
 
-            # Uniform masking: random mask at this rate
-            maskable = attention_mask.bool() & ~special_tokens_mask
-            rand = torch.rand(bsz, seq_len, device=device)
-            mask_labels = (rand < mask_rate) & maskable
+        num_masked = mask_labels.sum().item()
+        if num_masked == 0:
+            continue
 
-            # Skip if nothing is masked
-            num_masked = mask_labels.sum().item()
-            if num_masked == 0:
-                continue
+        masked_ids = token_ids.clone()
+        masked_ids[mask_labels] = MASK_TOKEN_ID
 
-            masked_ids = token_ids.clone()
-            masked_ids[mask_labels] = MASK_TOKEN_ID
+        with torch.amp.autocast("cuda", dtype=torch.bfloat16):
+            outputs = model(masked_ids, chain_ids, attention_mask)
+            logits = outputs["logits"]
 
-            with torch.amp.autocast("cuda", dtype=torch.bfloat16):
-                outputs = model(masked_ids, chain_ids, attention_mask)
-                logits = outputs["logits"]
+        logits_flat = logits.view(-1, VOCAB_SIZE)
+        targets_flat = token_ids.view(-1)
+        mask_flat = mask_labels.view(-1)
 
-            # Compute loss on masked positions
-            logits_flat = logits.view(-1, VOCAB_SIZE)
-            targets_flat = token_ids.view(-1)
-            mask_flat = mask_labels.view(-1)
+        loss_per_token = F.cross_entropy(
+            logits_flat, targets_flat, reduction="none"
+        )
+        masked_loss = (loss_per_token * mask_flat.float()).sum().item()
+        total_loss += masked_loss
 
-            loss_per_token = F.cross_entropy(
-                logits_flat, targets_flat, reduction="none"
-            )
-            masked_loss = (loss_per_token * mask_flat.float()).sum().item()
-            total_loss += masked_loss
-
-            # Accuracy
-            preds = logits.argmax(dim=-1)
-            correct = ((preds == token_ids) & mask_labels).sum().item()
-            total_correct += correct
-            total_masked += num_masked
+        preds = logits.argmax(dim=-1)
+        correct = ((preds == token_ids) & mask_labels).sum().item()
+        total_correct += correct
+        total_masked += num_masked
 
     model.train()
 
